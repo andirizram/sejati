@@ -248,32 +248,89 @@
             $('#hari-container').addClass('d-none');
         }
 
-        window.fillCurrentValue = async (id) => {
-            const response = await fetch(@json(URL::to('/jadwal')) +'/' + id);
-            const jadwal = await response.json();
-
-            jadwal.tipe == 'TA' ?
-                $('.column-pengulangan').addClass('d-none') :
-                $('.column-pengulangan').removeClass('d-none')
-
-            jadwal.pengulangan ?
-                $('input[name="pengulangan"]').prop('checked', true) :
-                $('input[name="pengulangan"]').prop('checked', false);
-
-            if (jadwal.pengulangan) {
-                $('#tanggal-container').addClass('d-none');
-                $('#hari-container').removeClass('d-none');
-                $('select[name="hari"]').val(jadwal.hari).trigger('change')
-            } else {
-                $('#tanggal').val(jadwal.tanggal).trigger('change')
-                $('#tanggal-container').removeClass('d-none');
-                $('#hari-container').addClass('d-none');
+        function calculateWaktuSelesai(tipe, waktuMulai, sks = 0, sidang = '') {
+            if (!waktuMulai) {
+                return '';
             }
 
-            $('input[name="waktu_mulai"]').val(jadwal.waktu_mulai);
-            $('input[name="waktu_selesai"]').val(jadwal.waktu_selesai);
-            $('input[name="ruangan"]').val(jadwal.ruangan);
+            const waktuMulaiDate = new Date(`1970-01-01T${waktuMulai}:00`);
+            let minutesToAdd = 0;
+
+            if (tipe === 'Prodi') {
+                if (sks === 4) {
+                    sks = 2;
+                }
+                minutesToAdd = sks * 50;
+            } else if (tipe === 'TA') {
+                if (sidang === 'Sidang Proposal') {
+                    minutesToAdd = 60; // 1 hour
+                } else if (sidang === 'Sidang Akhir') {
+                    minutesToAdd = 90; // 1.5 hours
+                }
+            }
+
+            waktuMulaiDate.setMinutes(waktuMulaiDate.getMinutes() + minutesToAdd);
+
+            const hours = String(waktuMulaiDate.getHours()).padStart(2, '0');
+            const minutes = String(waktuMulaiDate.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
         }
+
+        window.fillCurrentValue = async (id) => {
+            const response = await fetch(@json(URL::to('/jadwal')) + '/' + id);
+            const jadwal = await response.json();
+
+            // Log the retrieved data
+            console.log('Retrieved jadwal data:', jadwal);
+
+            if (jadwal.tipe === 'TA') {
+                $('.column-pengulangan').addClass('d-none');
+            } else {
+                $('.column-pengulangan').removeClass('d-none');
+            }
+
+            if (jadwal.pengulangan > 0) {
+                $('#pengulangan').prop('checked', true);
+                showContainerHari();
+                $('#hari').val(jadwal.hari).trigger('change');
+            } else {
+                $('#pengulangan').prop('checked', false);
+                showContainerTanggal();
+                $('#tanggal').val(jadwal.tanggal).trigger('change');
+            }
+
+            $('#waktu-mulai').val(jadwal.waktu_mulai);
+            $('#ruangan').val(jadwal.ruangan);
+
+            // Store the original waktu selesai value
+            const originalWaktuSelesai = jadwal.waktu_selesai;
+            $('#waktu-selesai').val(originalWaktuSelesai);
+
+            // Remove any previous event listeners on waktu mulai
+            $('#waktu-mulai').off('change');
+
+            // Calculate waktu selesai only for Prodi and TA
+            if (jadwal.tipe === 'Prodi' || jadwal.tipe === 'TA') {
+                const waktuMulai = jadwal.waktu_mulai;
+                const sidangType = jadwal.detail_jadwal?.tipe || ''; // Use optional chaining to avoid undefined errors
+                const sksJadwal = jadwal.detail_jadwal?.sks || 0; // Ensure sks is 0 if not provided
+                const waktuSelesai = calculateWaktuSelesai(jadwal.tipe, waktuMulai, sksJadwal, sidangType);
+                $('#waktu-selesai').val(waktuSelesai);
+
+                // Add event listener to waktu mulai
+                $('#waktu-mulai').on('change', function () {
+                    const newWaktuMulai = $(this).val();
+                    const newWaktuSelesai = calculateWaktuSelesai(jadwal.tipe, newWaktuMulai, sksJadwal, sidangType);
+                    $('#waktu-selesai').val(newWaktuSelesai);
+                });
+            } else {
+                // Restore the original waktu selesai if the type is not Prodi or TA
+                $('#waktu-mulai').on('change', function () {
+                    $('#waktu-selesai').val(originalWaktuSelesai);
+                });
+            }
+        }
+
         $(document).ready(function () {
             $('#table').dataTable({
                 dom: 'flrtip',
@@ -295,28 +352,24 @@
                     processing: "Memproses...",
                 }
             });
+
             $('#jadwal-id').select2();
 
             $('#pengulangan').on('change', function () {
                 if (this.checked) {
-                    showContainerHari()
+                    showContainerHari();
                 } else {
-                    showContainerTanggal()
+                    showContainerTanggal();
                 }
-            })
+            });
 
             @error('jadwal_id')
-            $('#jadwal-id + span').addClass('is-invalid')
+            $('#jadwal-id + span').addClass('is-invalid');
             @enderror
 
-
             $('#jadwal-id').on('change', function () {
-                fillCurrentValue($(this).val())
-            })
-
-
+                fillCurrentValue($(this).val());
+            });
         });
     </script>
 @endsection
-
-

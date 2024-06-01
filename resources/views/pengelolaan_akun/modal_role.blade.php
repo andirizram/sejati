@@ -107,6 +107,25 @@
 @push('modal-scripts')
     <script type="module">
         $(document).ready(function () {
+            let lastChecked = null;
+
+            // Handle shift-click functionality
+            $('#modal-create-role, #modal-edit-role').on('click', 'input[type="checkbox"][name="permission[]"]', function (e) {
+                if (!lastChecked) {
+                    lastChecked = this;
+                    return;
+                }
+
+                if (e.shiftKey) {
+                    const checkboxes = $(this).closest('.form-group').find('input[type="checkbox"][name="permission[]"]');
+                    const start = checkboxes.index(this);
+                    const end = checkboxes.index(lastChecked);
+
+                    checkboxes.slice(Math.min(start, end), Math.max(start, end) + 1).prop('checked', lastChecked.checked);
+                }
+
+                lastChecked = this;
+            });
 
             @error('create-role')
             $('#modal-create-role').modal('show');

@@ -298,7 +298,7 @@
                 const waktuMulaiDate = new Date(`1970-01-01T${waktuMulai}:00`);
                 let minutesToAdd;
 
-                if (tipe === 'Sidang Proposal') {
+                if (tipe === 'Seminar Proposal') {
                     minutesToAdd = 60; // 1 hour
                 } else if (tipe === 'Sidang Akhir') {
                     minutesToAdd = 90; // 1.5 hours

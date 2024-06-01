@@ -30,7 +30,7 @@ class TA extends Model implements DetailJadwal
 
     const TIPE = [
         'Sidang Akhir',
-        'Sidang Proposal'
+        'Seminar Proposal'
     ];
 
     public function jadwal(): MorphOne

@@ -51,7 +51,7 @@ class UnggahJadwalController extends Controller
             'prodi' => JadwalProdiImport::class,
             'tpb' => JadwalTPBImport::class,
             'ta' => JadwalTAImport::class,
-            'lainnya' => JadwalLainImport::class,
+            'lain' => JadwalLainImport::class,
             default => abort(404, 'Invalid category provided'),
         };
     }
@@ -63,7 +63,7 @@ class UnggahJadwalController extends Controller
             'prodi' => \App\Models\Jadwal\Prodi::class,
             'tpb' => \App\Models\Jadwal\TPB::class,
             'ta' => \App\Models\Jadwal\TA::class,
-            'lainnya' => \App\Models\Jadwal\Lain::class,
+            'lain' => \App\Models\Jadwal\Lain::class,
             default => abort(404, 'Category not found'),
         };
     }

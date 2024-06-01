@@ -128,12 +128,19 @@
                       <div class="form-group">
                         <label for="jenis-jadwal">Jenis Jadwal</label>
                         <select name="jenis_jadwal" id="jenis-jadwal" class="form-control select2" required>
-                          <option value="">--Pilih Jadwal--</option>
-                          @foreach($jenisJadwal as $jid => $jadwal)
-                          <option value="{{ $jid }}" {{ $jid === old('jenis_jadwal') ? 'selected' : '' }}>
-                            {{ $jadwal }}
-                          </option>
-                          @endforeach
+                            <option value="">--Pilih Jadwal--</option>
+                            @can('jadwal-prodi.store')
+                            <option value="0" {{ 0 === old('jenis_jadwal') ? 'selected' : '' }}>Jadwal Prodi</option>
+                            @endcan
+                            @can('jadwal-tpb.store')
+                            <option value="1" {{ 1 === old('jenis_jadwal') ? 'selected' : '' }}>Jadwal TPB</option>
+                            @endcan
+                            @can('jadwal-ta.store')
+                            <option value="2" {{ 2 === old('jenis_jadwal') ? 'selected' : '' }}>Jadwal TA</option>
+                            @endcan
+                            @can('jadwal-lain.store')
+                            <option value="3" {{ 3 === old('jenis_jadwal') ? 'selected' : '' }}>Jadwal Lain</option>
+                            @endcan
                         </select>
                         @error('jenis_jadwal')
                         <small class="text-danger">{{ $message }}</small>

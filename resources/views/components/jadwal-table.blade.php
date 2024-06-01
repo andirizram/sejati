@@ -152,7 +152,7 @@
                     var columnIndex = column.index();
 
                     if (columnIndex === 2) { // Add specific options for the 'tipe' column (index 2)
-                        var select = $('<select class="form-control" style="width: max-content;"><option value=""></option><option value="Sidang Proposal">Sidang Proposal</option><option value="Sidang Akhir">Sidang Akhir</option></select>')
+                        var select = $('<select class="form-control" style="width: max-content;"><option value=""></option><option value="Seminar Proposal">Seminar Proposal</option><option value="Sidang Akhir">Sidang Akhir</option></select>')
                             .appendTo($("thead tr:eq(1) th").eq(column.index()).empty())
                             .on('mousedown', function (e) {
                                 e.stopPropagation(); // Prevent mousedown event from triggering sorting

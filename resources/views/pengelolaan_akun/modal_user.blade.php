@@ -46,7 +46,7 @@
                         <label for="password">Password</label>
                         <input type="password" class="form-control @error('password') is-invalid @enderror"
                                name="password" placeholder="Password...">
-                        <small>* biarkan kosong jika tidak ingin mengganti password</small>
+                        <!--<small>* biarkan kosong jika tidak ingin mengganti password</small>-->
                         @error('password')
                         <small class="text-danger">{{ $message }}</small>
                         @enderror

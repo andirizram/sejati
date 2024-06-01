@@ -4,6 +4,7 @@
 <div class="box-body">
     <h4>UNGGAH JADWAL</h4>
     <p>Pastikan jadwal yang ingin diunggah sudah sesuai dengan format dan tujuan yang ada, format bisa diunduh melalui link ini: <a href="https://drive.google.com/drive/folders/1CkUmra_t2lXf00KNhVeUc4672elo00f_?usp=sharing" target="_blank">Download Format Jadwal</a></p>
+    
     @if(session('error'))
     <div class="alert alert-danger">
         {{ session('error') }}
@@ -14,6 +15,7 @@
         {{ session('success') }}
     </div>
     @endif
+    
     <form action="{{ route('unggah-jadwal.store') }}" method="POST" enctype="multipart/form-data" class="form-horizontal">
         @csrf
         <div class="form-group">
@@ -26,9 +28,18 @@
             <div class="col-md-5">
                 <select class="form-control input-sm" name="category" id="category" required>
                     <option value="" selected="selected">- Pilih Jenis Jadwal -</option>
-                    @foreach($categories as $category)
-                        <option value="{{ $category }}">{{ $category }}</option>
-                    @endforeach
+                    @can('jadwal-tpb.store')
+                        <option value="TPB">TPB</option>
+                    @endcan
+                    @can('jadwal-prodi.store')
+                        <option value="Prodi">Prodi</option>
+                    @endcan
+                    @can('jadwal-ta.store')
+                        <option value="TA">TA</option>
+                    @endcan
+                    @can('jadwal-lain.store')
+                        <option value="Lain">Lain</option>
+                    @endcan
                 </select>
                 <br/>
             </div>
