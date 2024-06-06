@@ -14,6 +14,8 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Arr;
 use Maatwebsite\Excel\Facades\Excel;
 use ReflectionClass;
@@ -37,15 +39,36 @@ class JadwalController extends Controller
 
     public function pribadi(Request $request): \Illuminate\View\View
     {
-        $jadwalDiambil = User::getJadwalDiambil();
+        $jadwalDiambil = User::getJadwalDiambil(Auth::id());
         $jadwals = KalenderResource::collection($jadwalDiambil)->toArray($request);
-        return view('kalender', compact('jadwals'));
+        $users = User::where('email', 'like', '%@if.itera.ac.id')->get(); // Fetch users with specific email domain
+        return view('kalender', compact('jadwals', 'users'));
     }
+
+public function getUserSchedule($userId)
+    {
+        $jadwalDiambil = User::getJadwalDiambil($userId);
+        $jadwals = KalenderResource::collection($jadwalDiambil)->toArray(request());
+        return response()->json($jadwals);
+    }
+
+    public function getCollidingScheduleCount()
+    {
+        $cacheKey = 'schedule_collision_count';
+
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () {
+            $collidingSchedules = Jadwal::getTabrakan();
+            return $collidingSchedules->count();
+        });
+    }
+
 
     public function tabrakan(Request $request)
     {
         $jadwals = JadwalResource::collection(Jadwal::getTabrakan())->toArray($request);
-        return view('jadwal_tabrakan', compact('jadwals'));
+        $collidingScheduleCount = count($jadwals); // Get the count of colliding schedules
+
+        return view('jadwal_tabrakan', compact('jadwals', 'collidingScheduleCount'));
     }
 
     public function ambil(Request $request, Jadwal $jadwal): RedirectResponse

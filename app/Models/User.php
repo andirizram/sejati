@@ -12,11 +12,12 @@ use Illuminate\Database\Query\JoinClause;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, HasRoles;
+    use HasFactory, HasRoles, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -94,16 +95,18 @@ class User extends Authenticatable
             ->pluck('id');
     }
 
-    public static function getJadwalDiambil()
+    public static function getJadwalDiambil($userId = null)
     {
         $array_baru = [];
+        $user = $userId ? User::find($userId) : Auth::user();
+        $jadwalDiambil = $user->jadwalDiambil;
         $akhir_kuliah = \Carbon\Carbon::parse(Pengaturan::where('key', 'tanggal_kuliah_terakhir')->first()->value);
 
         if ($akhir_kuliah->isPast()) {
             return collect($array_baru);
         }
 
-        Auth::user()->jadwalDiambil->map(function ($jadwal) use (&$array_baru, $akhir_kuliah) {
+        $jadwalDiambil->map(function ($jadwal) use (&$array_baru, $akhir_kuliah) {
 
             if ($jadwal->pengulangan) {
                 array_push($array_baru, $jadwal);
@@ -115,7 +118,6 @@ class User extends Authenticatable
                     $jadwal_baru->id = $jadwal->id;
                     $jadwal_baru->tanggal_mulai = Carbon::parse($jadwal->tanggal_mulai)->addWeeks($i);
                     array_push($array_baru, $jadwal_baru);
-
                 }
             } else {
                 array_push($array_baru, $jadwal);

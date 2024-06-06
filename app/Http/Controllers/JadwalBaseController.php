@@ -6,9 +6,11 @@ use App\Http\Requests\StoreJadwalRequest;
 use App\Http\Requests\UpdateJadwalRequest;
 use App\Http\Resources\JadwalResource;
 use App\Models\Jadwal\Jadwal;
+use App\Events\ScheduleUpdated;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class JadwalBaseController extends Controller
 {
@@ -18,29 +20,16 @@ class JadwalBaseController extends Controller
 
     protected array $columns = [];
 
-
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
         $columns = $this->columns;
-
         $resource = 'App\Http\Resources\Jadwal' . ucfirst(strtolower($this->module)) . 'Resource';
-
-
         $jadwals = Jadwal::with('detailJadwal')->where('kelas_detail_jadwal', $this->model)->get();
-
-
         $jadwals = $resource::collection($jadwals)->toArray(request());
-
 
         return view('jadwal-' . strtolower($this->module) . '.index', compact('jadwals', 'columns'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(StoreJadwalRequest $request)
     {
         $controller = get_class($this);
@@ -52,7 +41,6 @@ class JadwalBaseController extends Controller
         try {
             app($formRequestClass)->validated();
         } catch (\Illuminate\Validation\ValidationException $e) {
-            // Redirect back with errors and set the openModal flag
             return redirect()->back()->withErrors($e->errors())->with('openModal', true)->withInput();
         }
 
@@ -73,17 +61,20 @@ class JadwalBaseController extends Controller
             ]);
 
             DB::commit();
+
+            // Clear cache
+            Cache::forget('schedule_collisions');
+
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->route('jadwal-' . strtolower($this->module) . '.index')->with('error', $e->getMessage());
         }
+        // After committing the transaction
+        event(new ScheduleUpdated($createdType));
 
         return redirect()->route('jadwal-' . strtolower($this->module) . '.index')->withSuccess('Data berhasil ditambahkan');
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show($id)
     {
         $query = Jadwal::with('detailJadwal')->where('id', $id);
@@ -94,13 +85,9 @@ class JadwalBaseController extends Controller
 
         $jadwal = $query->first();
 
-
         return response()->json(new JadwalResource($jadwal, $this->model));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(UpdateJadwalRequest $request, $id)
     {
         $controller = get_class($this);
@@ -112,8 +99,7 @@ class JadwalBaseController extends Controller
         try {
             app($formRequestClass)->validated();
         } catch (\Illuminate\Validation\ValidationException $e) {
-            // Redirect back with errors and set the openModal flag
-            return redirect()->back()->withErrors($e->errors())->with('openModal', true)->withInput()->with('error', 'Gagal memperbaharui karena ada data yang salah');;
+            return redirect()->back()->withErrors($e->errors())->with('openModal', true)->withInput()->with('error', 'Gagal memperbaharui karena ada data yang salah');
         }
 
         DB::beginTransaction();
@@ -140,20 +126,23 @@ class JadwalBaseController extends Controller
             }
 
             DB::commit();
+
+            // Clear cache
+            Cache::forget('schedule_collisions');
+
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->route('jadwal-' . strtolower($this->module) . '.index')->with('error', $e->getMessage());
         }
+        // After committing the transaction
+        event(new ScheduleUpdated($jadwal));
 
         return redirect()->route('jadwal-' . strtolower($this->module) . '.index')->withSuccess('Data berhasil diubah');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy($id)
     {
-        if (Auth::user()->can('jadwal-' . strtolower($this->module) . '.destory')) {
+        if (!Auth::user()->can('jadwal-' . strtolower($this->module) . '.destroy')) {
             return redirect()->route('jadwal-' . strtolower($this->module) . '.index')->with('error', 'Anda tidak memiliki akses');
         }
 
@@ -176,6 +165,9 @@ class JadwalBaseController extends Controller
 
         // Now it's safe to delete the Jadwal
         $jadwal->delete();
+
+        // Clear cache
+        Cache::forget('schedule_collisions');
 
         return redirect()->route('jadwal-' . strtolower($this->module) . '.index')->withSuccess('Data berhasil dihapus');
     }

@@ -38,6 +38,7 @@
         }
     </style>
 @endsection
+
 @section('content')
 
     @if (session('success'))
@@ -54,6 +55,13 @@
 
     <div class="d-flex justify-content-between align-items-center">
         <h2>Kalender Jadwal Saya</h2>
+        <!-- Add user selection dropdown -->
+        <select id="userSelect" class="form-control" style="width: 200px;">
+            <option value="">Punya Sendiri</option>
+            @foreach($users as $user)
+                <option value="{{ $user->id }}">{{ $user->name }}</option>
+            @endforeach
+        </select>
     </div>
 
     <div id="calendar"></div>
@@ -116,8 +124,7 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-primary btn-sm mr-auto d-none" id="button-edit"
-                            onClick="openEditModal(this)"><i class=" fa fa-pencil
-                    "></i>
+                            onClick="openEditModal(this)"><i class=" fa fa-pencil"></i>
                         Edit
                     </button>
                     @can('jadwal.ambil')
@@ -125,12 +132,11 @@
                             @csrf
                             @method('PUT')
                             <button type="submit" class="btn btn-default btn-sm">
-                                <i class="fa fa-bookmark-o"></i> Lepas Jadwal
+                                <i class="fa fa-bookmark-o"></i> Ambil/Lepas Jadwal
                             </button>
                         </form>
                     @endcan
                     <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Close</button>
-
                 </div>
             </div>
         </div>
@@ -177,11 +183,11 @@
         }
 
         window.openEditModal = async (element) => {
-            let modalId = element.getAttribute('data-modal-id')
+            let modalId = element.getAttribute('data-modal-id');
             $(modalId).find('form').trigger('reset');
             const response = await fetch(element.getAttribute('data-url'));
 
-            jadwal = await response.json();
+            let jadwal = await response.json();
 
             $(modalId).find('.modal-title').html('Edit Jadwal');
             $(modalId).find('form').attr('action', element.getAttribute('data-action'));
@@ -445,7 +451,52 @@
                 }
             })
             calendar.render()
-        });
 
+            // Add event listener to the user select dropdown
+            document.getElementById('userSelect').addEventListener('change', function() {
+                let userId = this.value;
+                if (userId) {
+                    fetch(`/getUserSchedule/${userId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const events = data.map(event => ({
+                                id: event.id,
+                                title: event.name,
+                                start: event.tanggal + 'T' + event.waktu_mulai,
+                                end: event.tanggal + 'T' + event.waktu_selesai,
+                                ruangan: event.ruangan,
+                                deskripsi: event.deskripsi,
+                                dosen: event.detail_jadwal.dosen,
+                                dosen_pembimbing_1: event.detail_jadwal.dosen_pembimbing_1,
+                                dosen_pembimbing_2: event.detail_jadwal.dosen_pembimbing_2,
+                                dosen_penguji_1: event.detail_jadwal.dosen_penguji_1,
+                                dosen_penguji_2: event.detail_jadwal.dosen_penguji_2,
+                                tipe: event.tipe,
+                                className: event.is_tabrakan ? 'fc-state-intersect' : ''
+                            }));
+                            calendar.removeAllEvents();
+                            calendar.addEventSource(events);
+                        })
+                        .catch(error => console.error('Error fetching user schedule:', error));
+                } else {
+                    calendar.removeAllEvents();
+                    calendar.addEventSource(jadwalKalender.map(jadwal => ({
+                        id: jadwal.id,
+                        title: jadwal.name,
+                        start: jadwal.tanggal + 'T' + jadwal.waktu_mulai,
+                        end: jadwal.tanggal + 'T' + jadwal.waktu_selesai,
+                        ruangan: jadwal.ruangan,
+                        deskripsi: jadwal.deskripsi,
+                        dosen: jadwal.dosen,
+                        dosen_pembimbing_1: jadwal.dosen_pembimbing_1,
+                        dosen_pembimbing_2: jadwal.dosen_pembimbing_2,
+                        dosen_penguji_1: jadwal.dosen_penguji_1,
+                        dosen_penguji_2: jadwal.dosen_penguji_2,
+                        tipe: jadwal.tipe,
+                        className: jadwal.tabrakan === '1' ? 'fc-state-intersect' : ''
+                    })));
+                }
+            });
+        });
     </script>
 @endsection

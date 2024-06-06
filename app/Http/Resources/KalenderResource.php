@@ -64,10 +64,10 @@ class KalenderResource extends JsonResource
 
 
             if ($this->tanggal_mulai->isSameDay($jadwal->tanggal_mulai)) {
-                if ($current_mulai->between($jadwal_mulai, $jadwal_selesai)
-                    || $current_selesai->between($jadwal_mulai, $jadwal_selesai)
-                    || $jadwal_mulai->between($current_mulai, $current_selesai)
-                    || $jadwal_selesai->between($current_mulai, $current_selesai)
+                if (($current_mulai->greaterThan($jadwal_mulai) && $current_mulai->lessThan($jadwal_selesai))
+                    || ($current_selesai->greaterThan($jadwal_mulai) && $current_selesai->lessThan($jadwal_selesai))
+                    || ($jadwal_mulai->greaterThan($current_mulai) && $jadwal_mulai->lessThan($current_selesai))
+                    || ($jadwal_selesai->greaterThan($current_mulai) && $jadwal_selesai->lessThan($current_selesai))
                 ) {
                     return true;
                 }

@@ -170,6 +170,7 @@ return [
 
         App\Providers\ViewServiceProvider::class,
         Spatie\Permission\PermissionServiceProvider::class,
+        App\Providers\ScheduleServiceProvider::class,
     ])->toArray(),
 
     /*

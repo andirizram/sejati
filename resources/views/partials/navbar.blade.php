@@ -1,3 +1,4 @@
+
 @php
     $routeName = request()->route()->getName();
 @endphp
@@ -19,6 +20,9 @@
             <a href="{{ route('jadwal-tabrakan') }}"
                class="list-group-item {{ $routeName == 'jadwal-tabrakan' ? 'active' : '' }}">
                 <i class="fa fa-warning tab10" aria-hidden="true"></i>Jadwal Bertabrakan
+                @if(isset($collidingScheduleCount) && $collidingScheduleCount > 0)
+                    <span class="badge badge-danger">{{ $collidingScheduleCount }}</span>
+                @endif
             </a>
         @endcan
 
@@ -30,9 +34,9 @@
         @endcan
 
         @can('jadwal.export')
-        <a href="{{ route('jadwal.export') }}" class="list-group-item {{ $routeName == 'jadwal.export' ? 'active' : '' }}">
-            <i class="fa fa-download tab10" aria-hidden="true"></i>Unduh Jadwal
-        </a>
+            <a href="{{ route('jadwal.export') }}" class="list-group-item {{ $routeName == 'jadwal.export' ? 'active' : '' }}">
+                <i class="fa fa-download tab10" aria-hidden="true"></i>Unduh Jadwal
+            </a>
         @endcan
 
         @can('jadwal-prodi.index')

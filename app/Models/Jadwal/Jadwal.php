@@ -9,6 +9,7 @@ use App\Traits\HasPembuat;
 use App\Traits\JadwalDateTime;
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -129,69 +130,77 @@ class Jadwal extends Model
 
     public static function getTabrakan()
     {
-        $array_baru = [];
-        $akhir_kuliah = \Carbon\Carbon::parse(Pengaturan::where('key', 'tanggal_kuliah_terakhir')->first()->value);
+        $cacheKey = 'schedule_collisions';
 
-        if ($akhir_kuliah->isPast()) {
-            return collect($array_baru);
-        }
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () {
+            $array_baru = [];
+            $akhir_kuliah = Carbon::parse(Pengaturan::where('key', 'tanggal_kuliah_terakhir')->first()->value);
 
-        Jadwal::get()->map(function ($jadwal) use (&$array_baru, $akhir_kuliah) {
+            if ($akhir_kuliah->isPast()) {
+                return collect($array_baru);
+            }
 
-            if ($jadwal->pengulangan) {
-                $jadwal_baru = $jadwal->replicate();
-                $jadwal_baru->id = $jadwal->id;
-                $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
-                array_push($array_baru, $jadwal_baru->toArray());
+            $jadwalInstance = new self();
 
-                $selisih = Carbon::parse($jadwal->tanggal_mulai)->diffInWeeks($akhir_kuliah);
+            Jadwal::with('detailJadwal')->get()->map(function ($jadwal) use (&$array_baru, $akhir_kuliah, $jadwalInstance) {
+                $jadwalInstance->generateRecurrentSchedules($jadwal, $akhir_kuliah, $array_baru);
+            });
 
-                foreach (range(1, $selisih) as $i) {
-                    $jadwal_baru = $jadwal->replicate();
-                    $jadwal_baru->id = $jadwal->id;
-                    $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
-                    $jadwal_baru->tanggal_mulai = Carbon::parse($jadwal->tanggal_mulai)->addWeeks($i);
-                    array_push($array_baru, $jadwal_baru->toArray());
+            $result = [];
+            foreach ($array_baru as $jadwal) {
+                if ($jadwalInstance->isTabrakan($jadwal)) {
+                    $result[] = $jadwal['id'];
                 }
-            } else {
+            }
+
+            return Jadwal::whereIn('id', $result)->get();
+        });
+    }
+    
+    private function generateRecurrentSchedules($jadwal, $akhir_kuliah, &$array_baru)
+    {
+        if ($jadwal->pengulangan) {
+            $jadwal_baru = $jadwal->replicate();
+            $jadwal_baru->id = $jadwal->id;
+            $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
+            $array_baru[] = $jadwal_baru->toArray();
+    
+            $selisih = Carbon::parse($jadwal->tanggal_mulai)->diffInWeeks($akhir_kuliah);
+    
+            for ($i = 1; $i <= $selisih; $i++) {
                 $jadwal_baru = $jadwal->replicate();
                 $jadwal_baru->id = $jadwal->id;
                 $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
-                array_push($array_baru, $jadwal_baru->toArray());
+                $jadwal_baru->tanggal_mulai = Carbon::parse($jadwal->tanggal_mulai)->addWeeks($i);
+                $array_baru[] = $jadwal_baru->toArray();
             }
-        });
-
-        $model = new self();
-        $result = [];
-        foreach ($array_baru as $jadwal) {
-
-            if ($model->isTabrakan($jadwal)) {
-                array_push($result, $jadwal['id']);
-            }
+        } else {
+            $jadwal_baru = $jadwal->replicate();
+            $jadwal_baru->id = $jadwal->id;
+            $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
+            $array_baru[] = $jadwal_baru->toArray();
         }
-
-        return Jadwal::whereIn('id', $result)->get();
     }
-
+    
     public function isTabrakan($data)
     {
-        $jadwalDiambil = Jadwal::get();
-
+        $jadwalDiambil = Jadwal::with('detailJadwal')->get();
+    
         foreach ($jadwalDiambil as $jadwal) {
             if ($data['id'] == $jadwal->id) {
                 continue;
             }
-
+    
             $jadwal_mulai = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal->waktu_mulai));
             $jadwal_selesai = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal->waktu_selesai));
-
+    
             $current_tanggal_mulai = Carbon::createFromDate($data['tanggal_mulai']);
             $current_mulai = Carbon::createFromTimeString($this->parseTimeToLocal($data['waktu_mulai']));
             $current_selesai = Carbon::createFromTimeString($this->parseTimeToLocal($data['waktu_selesai']));
-
+    
             $dosen_overlap = count(array_intersect($jadwal->detailJadwal->dosen_array, $data['dosen_array'])) > 0;
             $ruangan_sama = $jadwal->ruangan == $data['ruangan'];
-
+    
             if (
                 $current_tanggal_mulai->isSameDay($jadwal->tanggal_mulai) &&
                 (
@@ -199,18 +208,19 @@ class Jadwal extends Model
                     $ruangan_sama
                 ) &&
                 (
-                    $current_mulai->between($jadwal_mulai, $jadwal_selesai) ||
-                    $current_selesai->between($jadwal_mulai, $jadwal_selesai) ||
-                    $jadwal_mulai->between($current_mulai, $current_selesai) ||
-                    $jadwal_selesai->between($current_mulai, $current_selesai)
+                    ($current_mulai->greaterThan($jadwal_mulai) && $current_mulai->lessThan($jadwal_selesai)) ||
+                    ($current_selesai->greaterThan($jadwal_mulai) && $current_selesai->lessThan($jadwal_selesai)) ||
+                    ($jadwal_mulai->greaterThan($current_mulai) && $jadwal_mulai->lessThan($current_selesai)) ||
+                    ($jadwal_selesai->greaterThan($current_mulai) && $jadwal_selesai->lessThan($current_selesai))
                 )
             ) {
                 return true;
             }
         }
-
+    
         return false;
     }
+    
 
     public static function kosongkanData($category = null)
     {
