@@ -45,7 +45,7 @@ class JadwalController extends Controller
         return view('kalender', compact('jadwals', 'users'));
     }
 
-public function getUserSchedule($userId)
+    public function getUserSchedule($userId)
     {
         $jadwalDiambil = User::getJadwalDiambil($userId);
         $jadwals = KalenderResource::collection($jadwalDiambil)->toArray(request());
@@ -62,6 +62,13 @@ public function getUserSchedule($userId)
         });
     }
 
+    protected function refreshCollisionCache()
+    {
+        Cache::remember('schedule_collision_count', now()->addMinutes(30), function () {
+            $collidingSchedules = Jadwal::getTabrakan();
+            return $collidingSchedules->count();
+        });
+    }
 
     public function tabrakan(Request $request)
     {

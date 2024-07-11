@@ -11,24 +11,26 @@ use App\Models\PerubahanJadwal;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class PerubahanJadwalController extends Controller
 {
-
     public function index()
     {
-        $pengjuanData = PerubahanJadwal::all();
+        $pengajuanCount = $this->getCachedPengajuanCount();
 
-        $pengajuans = PerubahanJadwalResource::collection($pengjuanData)->toArray(app('request'));
+        $pengajuanData = PerubahanJadwal::all();
+        $pengajuans = PerubahanJadwalResource::collection($pengajuanData)->toArray(app('request'));
 
-        return response()->view('daftar_pengajuan', compact('pengajuans'));
+        return response()->view('daftar_pengajuan', compact('pengajuans', 'pengajuanCount'));
     }
 
     public function create()
     {
+        $pengajuanCount = $this->getCachedPengajuanCount();
+
         $jadwalData = Jadwal::with('detailJadwal')->get();
         $jadwals = JadwalResource::collection($jadwalData)->toArray(app('request'));
-
 
         $pengajuanData = PerubahanJadwal::with('jadwal')
             ->where('user_id_pembuat', Auth::user()->id)
@@ -37,8 +39,7 @@ class PerubahanJadwalController extends Controller
 
         $pengajuans = PerubahanJadwalResource::collection($pengajuanData)->toArray(app('request'));
 
-
-        return view('pengajuan', compact('jadwals', 'pengajuans'));
+        return view('pengajuan', compact('jadwals', 'pengajuans', 'pengajuanCount'));
     }
 
     public function store(StorePerubahanJadwalRequest $request)
@@ -54,8 +55,25 @@ class PerubahanJadwalController extends Controller
             'ruangan' => $request->ruangan
         ]);
 
+        $this->refreshPengajuanCache();
+
         return redirect()->back()->withSuccess('Data berhasil diajukan');
     }
+
+    protected function refreshPengajuanCache()
+    {
+        Cache::remember('pengajuan_count', now()->addMinutes(30), function () {
+            return PerubahanJadwal::where('status', PerubahanJadwal::STATUS_TUNGGU)->count();
+        });
+    }
+
+    public function getCachedPengajuanCount()
+    {
+        return Cache::remember('pengajuan_count', now()->addMinutes(30), function () {
+            return PerubahanJadwal::where('status', PerubahanJadwal::STATUS_TUNGGU)->count();
+        });
+    }
+
 
     public function daftar(): Response
     {

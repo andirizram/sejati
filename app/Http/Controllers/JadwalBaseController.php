@@ -20,6 +20,13 @@ class JadwalBaseController extends Controller
 
     protected array $columns = [];
 
+    protected function refreshCollisionCache()
+    {
+        Cache::remember('schedule_collisions', now()->addMinutes(30), function () {
+            return Jadwal::getTabrakan();
+        });
+    }
+
     public function index()
     {
         $columns = $this->columns;
@@ -64,6 +71,7 @@ class JadwalBaseController extends Controller
 
             // Clear cache
             Cache::forget('schedule_collisions');
+            $this->refreshCollisionCache();
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -129,6 +137,7 @@ class JadwalBaseController extends Controller
 
             // Clear cache
             Cache::forget('schedule_collisions');
+            $this->refreshCollisionCache();
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -168,6 +177,7 @@ class JadwalBaseController extends Controller
 
         // Clear cache
         Cache::forget('schedule_collisions');
+        $this->refreshCollisionCache();
 
         return redirect()->route('jadwal-' . strtolower($this->module) . '.index')->withSuccess('Data berhasil dihapus');
     }

@@ -83,8 +83,11 @@
 
         @can('perubahan-jadwal.index')
             <a href="{{ route('perubahan-jadwal.index') }}"
-               class="list-group-item {{ $routeName == 'perubahan-jadwal.index' ? 'active' : '' }}">
+            class="list-group-item {{ $routeName == 'perubahan-jadwal.index' ? 'active' : '' }}">
                 <i class="fa fa-reorder tab10" aria-hidden="true"></i>Daftar Permintaan Perubahan Jadwal
+                @if(isset($pengajuanCount) && $pengajuanCount > 0)
+                    <span class="badge badge-danger">{{ $pengajuanCount }}</span>
+                @endif
             </a>
         @endcan
 

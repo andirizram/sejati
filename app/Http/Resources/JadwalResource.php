@@ -40,8 +40,7 @@ class JadwalResource extends JsonResource
             'detail_jadwal' => $this->detailJadwal,
             'tipe' => explode("\\", $this->kelas_detail_jadwal)[3],
             'name' => $this->name($this->kelas_detail_jadwal, $this->detailJadwal),
-            'deskripsi' => $this->linkify($this->detailJadwal->deskripsi) // Apply linkify here
-
+            'deskripsi' => $this->detailJadwal ? $this->linkify($this->detailJadwal->deskripsi) : null, // Apply linkify if detailJadwal is not null
         ];
     }
 

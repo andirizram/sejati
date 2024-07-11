@@ -15,7 +15,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -133,76 +132,76 @@ class Jadwal extends Model
         $cacheKey = 'schedule_collisions';
 
         return Cache::remember($cacheKey, now()->addMinutes(30), function () {
-            $array_baru = [];
             $akhir_kuliah = Carbon::parse(Pengaturan::where('key', 'tanggal_kuliah_terakhir')->first()->value);
 
             if ($akhir_kuliah->isPast()) {
-                return collect($array_baru);
+                return collect([]);
             }
 
             $jadwalInstance = new self();
+            $allSchedules = Jadwal::with('detailJadwal')->get();
 
-            Jadwal::with('detailJadwal')->get()->map(function ($jadwal) use (&$array_baru, $akhir_kuliah, $jadwalInstance) {
-                $jadwalInstance->generateRecurrentSchedules($jadwal, $akhir_kuliah, $array_baru);
-            });
+            $allPossibleSchedules = $jadwalInstance->generateAllPossibleSchedules($allSchedules, $akhir_kuliah);
 
-            $result = [];
-            foreach ($array_baru as $jadwal) {
-                if ($jadwalInstance->isTabrakan($jadwal)) {
-                    $result[] = $jadwal['id'];
-                }
-            }
+            $result = $jadwalInstance->checkCollisions($allPossibleSchedules, $allSchedules);
 
             return Jadwal::whereIn('id', $result)->get();
         });
     }
     
-    private function generateRecurrentSchedules($jadwal, $akhir_kuliah, &$array_baru)
+    private function generateAllPossibleSchedules($jadwals, $akhir_kuliah)
     {
+        $allSchedules = [];
+
+        foreach ($jadwals as $jadwal) {
+            $this->generateRecurrentSchedules($jadwal, $akhir_kuliah, $allSchedules);
+        }
+
+        return $allSchedules;
+    }
+
+    private function generateRecurrentSchedules($jadwal, $akhir_kuliah, &$allSchedules)
+    {
+        $jadwal_baru = $jadwal->replicate();
+        $jadwal_baru->id = $jadwal->id;
+        $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
+        $allSchedules[] = $jadwal_baru->toArray();
+
         if ($jadwal->pengulangan) {
-            $jadwal_baru = $jadwal->replicate();
-            $jadwal_baru->id = $jadwal->id;
-            $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
-            $array_baru[] = $jadwal_baru->toArray();
-    
             $selisih = Carbon::parse($jadwal->tanggal_mulai)->diffInWeeks($akhir_kuliah);
-    
+
             for ($i = 1; $i <= $selisih; $i++) {
                 $jadwal_baru = $jadwal->replicate();
                 $jadwal_baru->id = $jadwal->id;
                 $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
                 $jadwal_baru->tanggal_mulai = Carbon::parse($jadwal->tanggal_mulai)->addWeeks($i);
-                $array_baru[] = $jadwal_baru->toArray();
+                $allSchedules[] = $jadwal_baru->toArray();
             }
-        } else {
-            $jadwal_baru = $jadwal->replicate();
-            $jadwal_baru->id = $jadwal->id;
-            $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
-            $array_baru[] = $jadwal_baru->toArray();
         }
     }
-    
-    public function isTabrakan($data)
+
+    public function isTabrakan($data, $allSchedules)
     {
-        $jadwalDiambil = Jadwal::with('detailJadwal')->get();
-    
-        foreach ($jadwalDiambil as $jadwal) {
-            if ($data['id'] == $jadwal->id) {
+        foreach ($allSchedules as $jadwal) {
+            if ($data['id'] == $jadwal['id']) {
                 continue;
             }
-    
-            $jadwal_mulai = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal->waktu_mulai));
-            $jadwal_selesai = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal->waktu_selesai));
-    
+
+            $jadwal_mulai = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal['waktu_mulai']));
+            $jadwal_selesai = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal['waktu_selesai']));
+
             $current_tanggal_mulai = Carbon::createFromDate($data['tanggal_mulai']);
             $current_mulai = Carbon::createFromTimeString($this->parseTimeToLocal($data['waktu_mulai']));
             $current_selesai = Carbon::createFromTimeString($this->parseTimeToLocal($data['waktu_selesai']));
-    
-            $dosen_overlap = count(array_intersect($jadwal->detailJadwal->dosen_array, $data['dosen_array'])) > 0;
-            $ruangan_sama = $jadwal->ruangan == $data['ruangan'];
-    
+
+            $dosen_array_jadwal = $jadwal['dosen_array'] ?? [];
+            $dosen_array_data = $data['dosen_array'] ?? [];
+
+            $dosen_overlap = count(array_intersect($dosen_array_jadwal, $dosen_array_data)) > 0;
+            $ruangan_sama = $jadwal['ruangan'] == $data['ruangan'];
+
             if (
-                $current_tanggal_mulai->isSameDay($jadwal->tanggal_mulai) &&
+                $current_tanggal_mulai->isSameDay($jadwal['tanggal_mulai']) &&
                 (
                     $dosen_overlap ||
                     $ruangan_sama
@@ -217,17 +216,16 @@ class Jadwal extends Model
                 return true;
             }
         }
-    
+
         return false;
     }
-    
 
     public static function kosongkanData($category = null)
     {
         DB::beginTransaction();
         try {
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-            
+
             if ($category) {
                 switch ($category) {
                     case 'TA':
@@ -277,6 +275,10 @@ class Jadwal extends Model
             }
 
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+            // Refresh the cache after deleting schedules
+            self::refreshCollisionCache();
+
         } catch (Exception $e) {
             DB::rollBack();
             return false;
@@ -284,5 +286,39 @@ class Jadwal extends Model
 
         DB::commit();
         return true;
+    }
+
+    public static function refreshCollisionCache()
+    {
+        Cache::forget('schedule_collisions');
+        Cache::remember('schedule_collisions', now()->addMinutes(30), function () {
+            $akhir_kuliah = Carbon::parse(Pengaturan::where('key', 'tanggal_kuliah_terakhir')->first()->value);
+
+            if ($akhir_kuliah->isPast()) {
+                return collect([]);
+            }
+
+            $jadwalInstance = new self();
+            $allSchedules = Jadwal::with('detailJadwal')->get();
+
+            $allPossibleSchedules = $jadwalInstance->generateAllPossibleSchedules($allSchedules, $akhir_kuliah);
+
+            $result = $jadwalInstance->checkCollisions($allPossibleSchedules, $allSchedules);
+
+            return Jadwal::whereIn('id', $result)->get();
+        });
+    }
+
+    private function checkCollisions($allPossibleSchedules, $allSchedules)
+    {
+        $result = [];
+
+        foreach ($allPossibleSchedules as $jadwal) {
+            if ($this->isTabrakan($jadwal, $allSchedules)) {
+                $result[] = $jadwal['id'];
+            }
+        }
+
+        return $result;
     }
 }
