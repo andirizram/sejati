@@ -27,21 +27,18 @@
                     </div>
                 @endif
                 <div class="form-group">
-                    <input class="form-control" name="email" placeholder="Email Pengguna"
-                           type="text" required/>
+                    <input class="form-control" name="email" placeholder="Email Pengguna" type="text" required/>
                 </div>
                 <div class="form-group">
-                    <input class="form-control" name="password" placeholder="Kata Sandi"
-                           type="password" required/>
+                    <input class="form-control" name="password" placeholder="Kata Sandi" type="password" required/>
                 </div>
-                <button type="submit" class="btn btn-lg btn-block" style="color: #0187e0">Login
-                </button>
+                <button type="submit" class="btn btn-lg btn-block" style="color: #0187e0">Login Dengan Akun</button>
+                <button type="button" onclick="window.location.href='https://itera.ac.id';" class="btn btn-lg btn-block" style="background-color: #D4AF37; color: #FF0000; margin-top: 10px;">Login Dengan SSO</button>
                 <hr/>
                 <center>
                     <h4>
                         <span style="color: rgb(244, 0, 0)">
-                          Lupa password? klik<a
-                                href="https://www.youtube.com/watch?v=CsAXxMgj4fo&ab_channel=UPATIKITERAOffical"> di sini</a>
+                            Lupa password? klik<a href="https://www.youtube.com/watch?v=CsAXxMgj4fo&ab_channel=UPATIKITERAOffical"> di sini</a>
                         </span>
                     </h4>
                 </center>

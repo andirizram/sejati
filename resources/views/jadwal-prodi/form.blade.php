@@ -45,7 +45,7 @@
 
     <div class="col-md-6 col-sm-12">
         <label for="semester">Semester</label>
-        <input type="number" class="form-control @error('semester') is-invalid @enderror"
+        <input type="text" class="form-control @error('semester') is-invalid @enderror"
                name="semester" value="{{ old('semester') }}" @cannot('profile.edit') readonly @endcannot required/>
         @error('semester')
         <small class="text-danger">{{ $message }}</small>

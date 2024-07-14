@@ -37,7 +37,7 @@ class JadwalTAImport implements ToModel, WithHeadingRow
             'waktu_mulai' => $row['start_time'],
             'waktu_selesai' => $row['end_time'],
             'ruangan' => $row['room'],
-            'pengulangan' => Jadwal::mapPengulangan($row['pengulangan']),
+            'pengulangan' => Jadwal::mapPengulangan($row['pengulangan'] ?? ''),
         ];
     }
 
@@ -60,7 +60,7 @@ class JadwalTAImport implements ToModel, WithHeadingRow
             'waktu_mulai' => $this->parseExcelTime($value['waktu_mulai']),
             'waktu_selesai' => $this->parseExcelTime($value['waktu_selesai']),
             'ruangan' => $value['ruangan'],
-            'pengulangan' => Jadwal::mapPengulangan($value['pengulangan']),
+            'pengulangan' => Jadwal::mapPengulangan($value['pengulangan'] ?? ''),
         ]);
     }
 

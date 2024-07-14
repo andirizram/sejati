@@ -4,12 +4,12 @@
     <style>
         .fc-state-intersect {
             background: #F44336 !important;
-            border-color: #F44336!important;
+            border-color: #F44336 !important;
             color: white;
         }
 
         .fc-state-intersect:hover {
-            background: rgb(238, 105, 93)!important;
+            background: rgb(238, 105, 93) !important;
             color: white;
         }
 
@@ -36,6 +36,45 @@
             border-color: #524C42;
             color: white;
         }
+        /* Updated CSS for the horizontal legend */
+        .color-legend ul {
+                list-style: none;
+                padding: 0;
+                display: flex;
+            }
+
+            .color-legend li {
+                display: flex;
+                align-items: center;
+                margin-right: 15px;
+            }
+
+            .legend-color {
+                width: 20px;
+                height: 20px;
+                display: inline-block;
+                margin-right: 5px;
+            }
+
+            .legend-color.fc-event-prodi {
+                background: #1e90ff;
+            }
+
+            .legend-color.fc-event-tpb {
+                background: #32CD32;
+            }
+
+            .legend-color.fc-event-ta {
+                background: #DD761C;
+            }
+
+            .legend-color.fc-event-lainnya {
+                background: #524C42;
+            }
+
+            .legend-color.fc-event-tabrakan {
+                background: #F44336;
+            }
     </style>
 @endsection
 
@@ -62,6 +101,17 @@
                 <option value="{{ $user->id }}">{{ $user->name }}</option>
             @endforeach
         </select>
+    </div>
+    <!-- Add this part for the legend -->
+    <div class="color-legend mt-3">
+        <h4>Keterangan Warna Jadwal :</h4>
+        <ul>
+            <li><span class="legend-color fc-event-prodi"></span> Prodi</li>
+            <li><span class="legend-color fc-event-tpb"></span> TPB</li>
+            <li><span class="legend-color fc-event-ta"></span> TA</li>
+            <li><span class="legend-color fc-event-lainnya"></span> Lainnya</li>
+            <li><span class="legend-color fc-event-tabrakan"></span> Tabrakan</li>
+        </ul>
     </div>
 
     <div id="calendar"></div>

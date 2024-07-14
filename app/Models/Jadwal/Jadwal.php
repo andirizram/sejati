@@ -60,6 +60,10 @@ class Jadwal extends Model
 
     public static function mapPengulangan(string $teks): int
     {
+        if (is_null($teks)) {
+            $teks = '';
+        }
+
         $teks = strtolower((string)$teks);
 
         switch ($teks) {
@@ -141,80 +145,67 @@ class Jadwal extends Model
             $jadwalInstance = new self();
             $allSchedules = Jadwal::with('detailJadwal')->get();
 
-            $allPossibleSchedules = $jadwalInstance->generateAllPossibleSchedules($allSchedules, $akhir_kuliah);
-
-            $result = $jadwalInstance->checkCollisions($allPossibleSchedules, $allSchedules);
+            $result = $jadwalInstance->checkCollisions($allSchedules);
 
             return Jadwal::whereIn('id', $result)->get();
         });
     }
-    
-    private function generateAllPossibleSchedules($jadwals, $akhir_kuliah)
+
+    private function checkCollisions($allSchedules)
     {
-        $allSchedules = [];
+        $result = [];
+        $events = [];
 
-        foreach ($jadwals as $jadwal) {
-            $this->generateRecurrentSchedules($jadwal, $akhir_kuliah, $allSchedules);
-        }
-
-        return $allSchedules;
-    }
-
-    private function generateRecurrentSchedules($jadwal, $akhir_kuliah, &$allSchedules)
-    {
-        $jadwal_baru = $jadwal->replicate();
-        $jadwal_baru->id = $jadwal->id;
-        $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
-        $allSchedules[] = $jadwal_baru->toArray();
-
-        if ($jadwal->pengulangan) {
-            $selisih = Carbon::parse($jadwal->tanggal_mulai)->diffInWeeks($akhir_kuliah);
-
-            for ($i = 1; $i <= $selisih; $i++) {
-                $jadwal_baru = $jadwal->replicate();
-                $jadwal_baru->id = $jadwal->id;
-                $jadwal_baru->dosen_array = $jadwal->detailJadwal->dosen_array ?? [];
-                $jadwal_baru->tanggal_mulai = Carbon::parse($jadwal->tanggal_mulai)->addWeeks($i);
-                $allSchedules[] = $jadwal_baru->toArray();
-            }
-        }
-    }
-
-    public function isTabrakan($data, $allSchedules)
-    {
+        // Create events for sweep line algorithm
         foreach ($allSchedules as $jadwal) {
-            if ($data['id'] == $jadwal['id']) {
-                continue;
+            $events[] = ['time' => $jadwal['waktu_mulai'], 'type' => 'start', 'jadwal' => $jadwal];
+            $events[] = ['time' => $jadwal['waktu_selesai'], 'type' => 'end', 'jadwal' => $jadwal];
+        }
+
+        // Sort events by time, with 'end' events before 'start' events if times are equal
+        usort($events, function ($a, $b) {
+            if ($a['time'] == $b['time']) {
+                return $a['type'] === 'end' ? -1 : 1;
             }
+            return $a['time'] < $b['time'] ? -1 : 1;
+        });
 
-            $jadwal_mulai = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal['waktu_mulai']));
-            $jadwal_selesai = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal['waktu_selesai']));
+        $active = [];
 
-            $current_tanggal_mulai = Carbon::createFromDate($data['tanggal_mulai']);
-            $current_mulai = Carbon::createFromTimeString($this->parseTimeToLocal($data['waktu_mulai']));
-            $current_selesai = Carbon::createFromTimeString($this->parseTimeToLocal($data['waktu_selesai']));
-
-            $dosen_array_jadwal = $jadwal['dosen_array'] ?? [];
-            $dosen_array_data = $data['dosen_array'] ?? [];
-
-            $dosen_overlap = count(array_intersect($dosen_array_jadwal, $dosen_array_data)) > 0;
-            $ruangan_sama = $jadwal['ruangan'] == $data['ruangan'];
-
-            if (
-                $current_tanggal_mulai->isSameDay($jadwal['tanggal_mulai']) &&
-                (
-                    $dosen_overlap ||
-                    $ruangan_sama
-                ) &&
-                (
-                    ($current_mulai->greaterThan($jadwal_mulai) && $current_mulai->lessThan($jadwal_selesai)) ||
-                    ($current_selesai->greaterThan($jadwal_mulai) && $current_selesai->lessThan($jadwal_selesai)) ||
-                    ($jadwal_mulai->greaterThan($current_mulai) && $jadwal_mulai->lessThan($current_selesai)) ||
-                    ($jadwal_selesai->greaterThan($current_mulai) && $jadwal_selesai->lessThan($current_selesai))
-                )
-            ) {
-                return true;
+        // Sweep line algorithm to find collisions
+        foreach ($events as $event) {
+            if ($event['type'] === 'start') {
+                foreach ($active as $activeEvent) {
+                    if ($this->isConflict($event['jadwal'], $activeEvent)) {
+                        $result[] = $event['jadwal']['id'];
+                        $result[] = $activeEvent['id'];
+                    }
+                }
+                $active[] = $event['jadwal'];
+            } else {
+                $active = array_filter($active, function ($activeEvent) use ($event) {
+                    return $activeEvent['id'] !== $event['jadwal']['id'];
+                });
             }
+        }
+
+        return array_unique($result);
+    }
+
+    private function isConflict($jadwal1, $jadwal2)
+    {
+        // Extract the relevant details
+        $start1 = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal1['waktu_mulai']))->subMinutes(5);
+        $end1 = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal1['waktu_selesai']))->addMinutes(5);
+        $start2 = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal2['waktu_mulai']))->subMinutes(5);
+        $end2 = Carbon::createFromTimeString($this->parseTimeToLocal($jadwal2['waktu_selesai']))->addMinutes(5);
+
+        $dosenOverlap = !empty(array_intersect($jadwal1['dosen_array'] ?? [], $jadwal2['dosen_array'] ?? []));
+        $ruanganSama = $jadwal1['ruangan'] == $jadwal2['ruangan'];
+        $tanggalSama = Carbon::createFromDate($jadwal1['tanggal_mulai'])->isSameDay($jadwal2['tanggal_mulai']);
+
+        if ($tanggalSama && ($dosenOverlap || $ruanganSama)) {
+            return ($start1->lessThan($end2) && $end1->greaterThan($start2));
         }
 
         return false;
@@ -301,24 +292,9 @@ class Jadwal extends Model
             $jadwalInstance = new self();
             $allSchedules = Jadwal::with('detailJadwal')->get();
 
-            $allPossibleSchedules = $jadwalInstance->generateAllPossibleSchedules($allSchedules, $akhir_kuliah);
-
-            $result = $jadwalInstance->checkCollisions($allPossibleSchedules, $allSchedules);
+            $result = $jadwalInstance->checkCollisions($allSchedules);
 
             return Jadwal::whereIn('id', $result)->get();
         });
-    }
-
-    private function checkCollisions($allPossibleSchedules, $allSchedules)
-    {
-        $result = [];
-
-        foreach ($allPossibleSchedules as $jadwal) {
-            if ($this->isTabrakan($jadwal, $allSchedules)) {
-                $result[] = $jadwal['id'];
-            }
-        }
-
-        return $result;
     }
 }
